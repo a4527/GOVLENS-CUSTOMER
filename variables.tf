@@ -41,3 +41,19 @@ variable "assessment_image_id" {
     error_message = "Use an AMI ID or the approved AWS-owned Amazon Linux public parameter."
   }
 }
+
+variable "owner_tag" {
+  description = "Value of the common Owner tag (DEC-0030). Supplied by the GitHub Environment, not committed."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._@+-]{1,128}$", var.owner_tag))
+    error_message = "Provide a non-empty Owner tag value of up to 128 characters."
+  }
+}
+
+variable "project_tag" {
+  description = "Value of the common Project tag."
+  type        = string
+  default     = "govlens"
+}

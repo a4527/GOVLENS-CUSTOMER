@@ -23,7 +23,7 @@ The customer owns workload-specific IAM permissions. A generic template cannot k
 
 ## 2. Repository starter installation
 
-Copy the directory [`templates/customer-sandbox-terraform-repository`](../templates/customer-sandbox-terraform-repository/) into the root of the new customer-owned repository. It is intentionally a template, not deployable customer IaC.
+Copy the directory [`templates/customer-sandbox-terraform-repository`](https://github.com/a4527/GOVLENS-SERVICE/tree/main/templates/customer-sandbox-terraform-repository) into the root of the new customer-owned repository. It is intentionally a template, not deployable customer IaC.
 
 Before a first pull request, the customer administrator must:
 
