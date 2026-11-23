@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Customer-owned workload permissions for this demo repository (S3/VPC/EC2/RDS/ALB). The
+  platform's customer-onboarding stack attaches PlanPolicyArn to the Terraform Plan role and
+  both policies to the Apply role. Writes are limited to the services this repository manages,
+  the approved Region, and the one sandbox bucket; nothing here can change IAM or the
+  Terraform state backend.
+
+Parameters:
+  ProjectName:
+    Type: String
+    AllowedPattern: "^[a-z](?:[a-z0-9-]*[a-z0-9])?$"
+  PlatformEnvironment:
+    Type: String
+    Default: sandbox
+    AllowedPattern: "^[a-z](?:[a-z0-9-]*[a-z0-9])?$"
+  SandboxBucketName:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+  ApprovedRegion:
+    Type: String
+    Default: us-east-1
+
+Resources:
+  WorkloadPlanPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${ProjectName}-${PlatformEnvironment}-workload-plan"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RefreshWorkload
+            Effect: Allow
+            Action:
+              - ec2:Describe*
+              - rds:Describe*
+              - rds:ListTagsForResource
+              - elasticloadbalancing:Describe*
+            Resource: "*"
+            Condition:
+              StringEquals:
+                aws:RequestedRegion: !Ref ApprovedRegion
+          - Sid: RefreshSandboxBucket
+            Effect: Allow
+            Action:
+              - s3:Get*
+              - s3:ListBucket
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${SandboxBucketName}"
+
+  WorkloadApplyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${ProjectName}-${PlatformEnvironment}-workload-apply"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ManageNetworkAndInstances
+            Effect: Allow
+            Action:
+              - ec2:CreateVpc
+              - ec2:DeleteVpc
+              - ec2:ModifyVpcAttribute
+              - ec2:CreateInternetGateway
+              - ec2:AttachInternetGateway
+              - ec2:DetachInternetGateway
+              - ec2:DeleteInternetGateway
+              - ec2:CreateSubnet
+              - ec2:DeleteSubnet
+              - ec2:ModifySubnetAttribute
+              - ec2:CreateRouteTable
+              - ec2:DeleteRouteTable
+              - ec2:CreateRoute
+              - ec2:DeleteRoute
+              - ec2:AssociateRouteTable
+              - ec2:DisassociateRouteTable
+              - ec2:CreateSecurityGroup
+              - ec2:DeleteSecurityGroup
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:AuthorizeSecurityGroupEgress
+              - ec2:RevokeSecurityGroupIngress
+              - ec2:RevokeSecurityGroupEgress
+              - ec2:ModifySecurityGroupRules
+              - ec2:UpdateSecurityGroupRuleDescriptionsIngress
+              - ec2:UpdateSecurityGroupRuleDescriptionsEgress
+              - ec2:RunInstances
+              - ec2:TerminateInstances
+              - ec2:StartInstances
+              - ec2:StopInstances
+              - ec2:ModifyInstanceAttribute
+              - ec2:ModifyInstanceMetadataOptions
+              - ec2:MonitorInstances
+              - ec2:UnmonitorInstances
+              - ec2:ModifyVolume
+              - ec2:CreateTags
+              - ec2:DeleteTags
+            Resource: "*"
+            Condition:
+              StringEquals:
+                aws:RequestedRegion: !Ref ApprovedRegion
+          - Sid: ManageDatabase
+            Effect: Allow
+            Action:
+              - rds:CreateDBInstance
+              - rds:DeleteDBInstance
+              - rds:ModifyDBInstance
+              - rds:RebootDBInstance
+              - rds:CreateDBSubnetGroup
+              - rds:DeleteDBSubnetGroup
+              - rds:ModifyDBSubnetGroup
+              - rds:AddTagsToResource
+              - rds:RemoveTagsFromResource
+            Resource: "*"
+            Condition:
+              StringEquals:
+                aws:RequestedRegion: !Ref ApprovedRegion
+          # manage_master_user_password = true: RDS stores the master password in an
+          # RDS-owned Secrets Manager secret created with the caller's permissions.
+          - Sid: RdsManagedMasterPassword
+            Effect: Allow
+            Action:
+              - secretsmanager:CreateSecret
+              - secretsmanager:RotateSecret
+              - secretsmanager:TagResource
+            Resource: !Sub "arn:${AWS::Partition}:secretsmanager:${ApprovedRegion}:${AWS::AccountId}:secret:rds!*"
+          - Sid: RdsManagedMasterPasswordKey
+            Effect: Allow
+            Action:
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Resource: "*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "secretsmanager.${ApprovedRegion}.amazonaws.com"
+          - Sid: ManageLoadBalancer
+            Effect: Allow
+            Action:
+              - elasticloadbalancing:CreateLoadBalancer
+              - elasticloadbalancing:DeleteLoadBalancer
+              - elasticloadbalancing:ModifyLoadBalancerAttributes
+              - elasticloadbalancing:SetSecurityGroups
+              - elasticloadbalancing:SetSubnets
+              - elasticloadbalancing:CreateListener
+              - elasticloadbalancing:DeleteListener
+              - elasticloadbalancing:ModifyListener
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:RemoveTags
+            Resource: "*"
+            Condition:
+              StringEquals:
+                aws:RequestedRegion: !Ref ApprovedRegion
+          # First RDS/ELB use in an account creates their service-linked roles.
+          - Sid: CreateWorkloadServiceLinkedRoles
+            Effect: Allow
+            Action: iam:CreateServiceLinkedRole
+            Resource: "*"
+            Condition:
+              StringEquals:
+                iam:AWSServiceName:
+                  - rds.amazonaws.com
+                  - elasticloadbalancing.amazonaws.com
+          - Sid: ManageSandboxBucket
+            Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:DeleteBucket
+              - s3:PutBucket*
+              - s3:DeleteBucketPolicy
+              - s3:PutEncryptionConfiguration
+              - s3:PutLifecycleConfiguration
+              - s3:ListBucketVersions
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${SandboxBucketName}"
+          # force_destroy empties the disposable bucket before deletion.
+          - Sid: EmptySandboxBucket
+            Effect: Allow
+            Action:
+              - s3:DeleteObject
+              - s3:DeleteObjectVersion
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${SandboxBucketName}/*"
+
+Outputs:
+  PlanPolicyArn:
+    Value: !Ref WorkloadPlanPolicy
+  ApplyPolicyArn:
+    Value: !Ref WorkloadApplyPolicy
