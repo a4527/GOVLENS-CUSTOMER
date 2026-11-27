@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Customer-owned workload permissions for this demo repository (S3/VPC/EC2/RDS/ALB). The
-  platform's customer-onboarding stack attaches PlanPolicyArn to the Terraform Plan role and
+  platform's workload-onboarding stack attaches PlanPolicyArn to the Terraform Plan role and
   both policies to the Apply role. Writes are limited to the services this repository manages,
   the approved Region, and the one sandbox bucket; nothing here can change IAM or the
   Terraform state backend.
