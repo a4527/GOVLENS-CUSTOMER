@@ -29,6 +29,10 @@ Expected policy violations:
 4. Manually install the platform workflow templates and canonical hash helper described in `docs/CUSTOMER_SANDBOX_ONBOARDING.md`. Do not put role, state, or sandbox bucket values in the copied workflows: configure `AWS_REGION`, each role ARN, the shared state bucket/key/lock-table values, and `SANDBOX_BUCKET_NAME` as GitHub Environment variables instead.
 5. Submit the first baseline through a normal customer PR. Never run local `terraform apply`; actual apply is through the protected GitHub workflow.
 
+## Workload permissions
+
+`onboarding/workload-policy.yaml` defines this repository's customer-owned Plan (read) and Apply (write) managed policies, limited to the services above, the approved Region, and the one sandbox bucket. The platform's `customer-onboarding` stack attaches them to the Terraform Plan/Apply roles; `scripts/sandbox-bootstrap.sh customer` in the platform repository deploys both.
+
 ## State conventions
 
 The backend uses one state key per customer/repository workspace. The concrete key belongs in customer-controlled `backend.hcl`; this template provides no default to prevent accidental state sharing.
